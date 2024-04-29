@@ -1,0 +1,4 @@
+(executable
+ (public_name learn_eio)
+ (name main)
+ (libraries eio eio_main eio.unix eio.mock))
