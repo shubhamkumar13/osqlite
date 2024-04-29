@@ -1,9 +1,17 @@
 [@@@warning "-27-39"]
+open Containers
 
 let parse str writer =
-  match str with
-  | ".exit" -> exit 0
-  | x -> Eio.Buf_write.printf writer "Unrecognized command %s \n" str
+  match String.to_list str with
+  | '.' :: tl ->
+    let s = String.of_list tl in
+    if String.equal_caseless s "exit" then exit 0 
+    else Eio.Buf_write.printf writer "Unrecognized command \'.%s\'\n" s 
+  | x -> match String.split_on_char ' ' str with
+         | [] -> 
+            raise @@ Failure "Empty command please try again"
+         | "insert" :: number :: table :: db :: _ ->
+         | hd :: _ -> Eio.Buf_write.printf writer "Unrecognized keyword at the start of \'%s\'.\n" str
 
 let repl env =
   let stdin = Eio.Stdenv.stdin env in
