@@ -1,5 +1,33 @@
-[@@@warning "-27-39"]
+[@@@warning "-27-39-34"]
 open Containers
+
+let tbl : 'a list list ref = ref []
+
+type insert_flag = 
+  [
+    | `Integer
+    | `Varchar32
+    | `Varchar255
+  ]
+
+type select_flag =
+  [
+    | `All
+  ]
+
+let rec insert acc flags inputs = List.(append acc @@ combine flags inputs)
+
+let rec table_to_string table =
+  match table with
+  | [] -> []
+  | hd :: tl ->
+    let rec loop = function
+      | [] -> ")"
+      | (`Integer, x) :: inner_tl -> Printf.sprintf "(%s, " x ^ loop inner_tl
+      | (`Varchar32, x) :: inner_tl -> Printf.sprintf "%s, " x ^ loop inner_tl 
+      | (`Varchar255, x) :: inner_tl -> Printf.sprintf "%s" x ^ loop inner_tl
+    in
+    loop hd :: table_to_string tl
 
 let parse str writer =
   match String.to_list str with
@@ -10,7 +38,13 @@ let parse str writer =
   | x -> match String.split_on_char ' ' str with
          | [] -> 
             raise @@ Failure "Empty command please try again"
-         | "insert" :: number :: table :: db :: _ ->
+         | "insert" :: inputs -> 
+            (* create a table *)
+            tbl := insert [] [`Integer; `Varchar32; `Varchar255] inputs :: !tbl;
+            Eio.Buf_write.printf writer "Executed.\n"
+         | "select" :: _ ->
+            Eio.Buf_write.printf writer "%s\n" (String.concat "\n" @@ table_to_string !tbl);
+            Eio.Buf_write.printf writer "Executed.\n"
          | hd :: _ -> Eio.Buf_write.printf writer "Unrecognized keyword at the start of \'%s\'.\n" str
 
 let repl env =
