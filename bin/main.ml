@@ -29,36 +29,39 @@ let rec table_to_string table =
     in
     loop hd :: table_to_string tl
 
-let parse str writer =
+let parse str stdout =
   match String.to_list str with
   | '.' :: tl ->
     let s = String.of_list tl in
     if String.equal_caseless s "exit" then exit 0 
-    else Eio.Buf_write.printf writer "Unrecognized command \'.%s\'\n" s 
+    else Eio.Flow.copy_string (Fmt.str "Unrecognized command \'.%s\'\n" s) stdout 
   | x -> match String.split_on_char ' ' str with
          | [] -> 
             raise @@ Failure "Empty command please try again"
-         | "insert" :: inputs -> 
+         | "insert" :: inputs when Equal.physical (List.length inputs) 3 -> 
             (* create a table *)
             tbl := insert [] [`Integer; `Varchar32; `Varchar255] inputs :: !tbl;
-            Eio.Buf_write.printf writer "Executed.\n"
+            Eio.Flow.copy_string "Executed.\n" stdout
+         | "insert" :: inputs when List.length inputs < 3 ->
+            Eio.Flow.copy_string "Insert expects 3 inputs.\n" stdout
+         | "insert" :: inputs when List.length inputs > 3 ->
+            Eio.Flow.copy_string "Insert expects 3 inputs.\n" stdout
+         | "select" :: _ when  List.length !tbl > 0 ->
+            Eio.Flow.copy_string (Fmt.str "%s\n" (String.concat "\n" @@ table_to_string !tbl)) stdout;
+            Eio.Flow.copy_string "Executed.\n" stdout
          | "select" :: _ ->
-            Eio.Buf_write.printf writer "%s\n" (String.concat "\n" @@ table_to_string !tbl);
-            Eio.Buf_write.printf writer "Executed.\n"
-         | hd :: _ -> Eio.Buf_write.printf writer "Unrecognized keyword at the start of \'%s\'.\n" str
+            Eio.Flow.copy_string "Table is empty.\n" stdout
+         | hd :: _ -> Eio.Flow.copy_string (Fmt.str "Unrecognized keyword at the start of \'%s\'.\n" str) stdout
 
 let repl env =
-  let stdin = Eio.Stdenv.stdin env in
+  let stdin  = Eio.Stdenv.stdin env in
   let stdout = Eio.Stdenv.stdout env in
+  let reader = Eio.Buf_read.of_flow stdin ~max_size:1_000 in
   let rec loop () =
-    let write db_name writer =
-      Eio.Buf_write.printf writer "%s > " db_name
-    in 
-    Eio.Buf_write.with_flow stdout @@ write "db";
-    let reader       = Eio.Buf_read.of_flow stdin ~max_size:1_000 in
-    let str          = Eio.Buf_read.line reader in
-    let write writer = parse str writer in
-    Eio.Buf_write.with_flow stdout write;
+    Eio.Flow.copy_string "db > " stdout;
+    let line = Eio.Buf_read.line reader in
+    Eio.traceln " output > %s" line;
+    parse line stdout;
     loop ()
   in
   loop ()
